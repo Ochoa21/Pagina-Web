@@ -1,103 +1,90 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
+const qrcode = require('qrcode'); // Nueva dependencia para generar el QR
+const User = require('../models/User');
 
-// Clave del dueño del sistema
-const OWNER_KEY = 'clave-del-dueno';
-
-// Registro de usuario
-router.post('/register', async (req, res) => {
+// Ruta para crear nuevos usuarios (protegida con la clave del dueño)
+router.post('/create-user', async (req, res) => {
     const { username, password, ownerKey } = req.body;
 
-    if (ownerKey !== OWNER_KEY) {
-        return res.status(403).json({ msg: 'Clave de dueño incorrecta' });
+    if (ownerKey !== '1913') {
+        return res.status(403).json({ message: 'Access Denied' });
     }
 
     try {
-        let user = await User.findOne({ username });
-        if (user) {
-            return res.status(400).json({ msg: 'El usuario ya existe' });
-        }
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-        user = new User({
+        const secret = speakeasy.generateSecret({ length: 20 });
+
+        const newUser = new User({
             username,
-            password: await bcrypt.hash(password, 10),
-            role: 'user'
+            password: hashedPassword,
+            twoFactorSecret: secret.base32
         });
 
-        await user.save();
-        res.json({ msg: 'Usuario registrado con éxito' });
+        await newUser.save();
+
+        qrcode.toDataURL(secret.otpauth_url, (err, dataUrl) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error generating QR code' });
+            }
+
+            res.status(201).json({ 
+                message: 'User created successfully', 
+                qrCodeUrl: dataUrl 
+            });
+        });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Error en el servidor');
+        res.status(500).json({ error: err.message });
     }
 });
 
-// Inicio de sesión
+// Ruta para iniciar sesión
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
         const user = await User.findOne({ username });
         if (!user) {
-            return res.status(400).json({ msg: 'Credenciales inválidas' });
+            return res.status(404).json({ message: 'User not found' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ msg: 'Credenciales inválidas' });
+            return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ userId: user._id }, 'tu-secreto-del-jwt', { expiresIn: '1h' });
-
-        res.json({ token, user });
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        res.json({ token });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Error en el servidor');
+        res.status(500).json({ error: err.message });
     }
 });
 
-// Habilitar 2FA
-router.post('/enable-2fa', async (req, res) => {
-    const { userId } = req.body;
-
-    try {
-        const user = await User.findById(userId);
-        const secret = speakeasy.generateSecret();
-
-        user.secret = secret.base32;
-        await user.save();
-
-        res.json({ msg: '2FA habilitado', data_url: secret.otpauth_url });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Error en el servidor');
-    }
+// Ruta para obtener el código OTP para 2FA
+router.post('/2fa', (req, res) => {
+    const secret = speakeasy.generateSecret({ length: 20 });
+    res.json({ secret: secret.base32 });
 });
 
-// Verificar OTP
-router.post('/verify-otp', async (req, res) => {
-    const { userId, otp } = req.body;
+// Ruta para verificar el código OTP
+router.post('/verify-2fa', (req, res) => {
+    const { token, secret } = req.body;
 
-    try {
-        const user = await User.findById(userId);
-        const verified = speakeasy.totp.verify({
-            secret: user.secret,
-            encoding: 'base32',
-            token: otp
-        });
+    const verified = speakeasy.totp.verify({
+        secret,
+        encoding: 'base32',
+        token
+    });
 
-        if (verified) {
-            res.json({ msg: 'OTP verificado' });
-        } else {
-            res.status(400).json({ msg: 'OTP inválido' });
-        }
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Error en el servidor');
+    if (verified) {
+        res.json({ message: '2FA success' });
+    } else {
+        res.status(400).json({ message: '2FA failed' });
     }
 });
 

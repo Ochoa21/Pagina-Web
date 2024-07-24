@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard</h1>
+        <div class="form">
+            <h2>Bloquear URL</h2>
+            <input type="text" id="blockUrl" placeholder="URL a bloquear">
+            <button onclick="blockUrl()">Bloquear</button>
+        </div>
+        <div class="form">
+            <h2>Extraer URLs</h2>
+            <input type="text" id="extractUrl" placeholder="URL del sitio web">
+            <button onclick="extractUrls()">Extraer</button>
+            <div id="urlList"></div>
+        </div>
+        <div class="form">
+            <h2>Habilitar 2FA</h2>
+            <button onclick="enable2FA()">Habilitar</button>
+            <div id="qrcode"></div>
+        </div>
+        <div class="form">
+            <h2>Verificar OTP</h2>
+            <input type="text" id="otp" placeholder="OTP">
+            <button onclick="verifyOTP()">Verificar</button>
+        </div>
+    </div>
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+/static-site
+│
+├── public
+│   ├── index.html
+│   ├── dashboard.html
+│   ├── style.css
+│   ├── script.js
+│   └── dashboard.js
+├── server.js
+├── models
+│   ├── User.js
+│   └── BlockedUrl.js
+├── routes
+│   ├── auth.js
+│   ├── user.js
+│   └── url.js
+└── config
+    └── db.js
